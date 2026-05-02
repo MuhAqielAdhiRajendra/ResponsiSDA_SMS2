@@ -31,10 +31,14 @@ public class Main extends Application {
     private VBox databaseWindow;
     private VBox chatWindow;
     private VBox caseListContainer;
-    private VBox chatContent; // Chat messages container
+    private VBox chatContent;
     private StackPane rootStack;
     private Image folderDisplayImg;
     private Image fileDisplayImg;
+
+    // Timer untuk kasus urgent
+    private Map<String, Timeline> urgentTimers = new HashMap<>();
+    private Map<String, Integer> urgentTimeLeft = new HashMap<>();
 
     @Override
     public void start(Stage primaryStage) {
@@ -143,7 +147,7 @@ public class Main extends Application {
         HBox dbHeader = new HBox();
         dbHeader.getStyleClass().add("exp-header");
         
-        Label dbTitle = new Label("⚙ SISTEM PELAPORAN & ANALISIS");
+        Label dbTitle = new Label("⚙ SISTEM PELAPORAN");
         dbTitle.getStyleClass().add("exp-title");
         
         Region dbSpacer = new Region();
@@ -167,14 +171,14 @@ public class Main extends Application {
         txtTargetCase.getStyleClass().add("search-bar");
 
         TextField txtSuspect = new TextField();
-        txtSuspect.setPromptText("Nama Tersangka / Ciri-ciri Fisik");
+        txtSuspect.setPromptText("Nama Tersangka");
         txtSuspect.getStyleClass().add("search-bar");
 
         TextField txtAnomaly = new TextField();
-        txtAnomaly.setPromptText("Laporan Kejanggalan / Bukti Baru");
+        txtAnomaly.setPromptText("Laporan Kejanggalan / Bukti Baru (OPSIONAL)");
         txtAnomaly.getStyleClass().add("search-bar");
 
-        Button btnAnalyze = new Button("🔍 MULAI ANALISIS OTOMATIS");
+        Button btnAnalyze = new Button("KIRIM LAPORAN");
         btnAnalyze.getStyleClass().add("btn-see-detail");
         btnAnalyze.setMaxWidth(Double.MAX_VALUE);
 
@@ -205,6 +209,18 @@ public class Main extends Application {
                         lblResult.setStyle("-fx-text-fill: #00ff88; -fx-font-family: 'Consolas'; -fx-font-size: 13px; -fx-padding: 10 0 0 0;");
                         lblResult.setText(result.message + "\n\n\u2705 KASUS " + caseT + " DITUTUP \u2014 PELAKU DITEMUKAN!");
                         
+                        // Stop urgent timer jika ada
+                        CaseData solvedCase = gameEngine.getActiveCases().get(caseT);
+                        if (solvedCase != null && solvedCase.isUrgent()) {
+                            if (urgentTimers.containsKey(caseT)) {
+                                urgentTimers.get(caseT).stop();
+                                urgentTimers.remove(caseT);
+                                urgentTimeLeft.remove(caseT);
+                            }
+                            gameEngine.urgentCaseSuccess();
+                            lblResult.setText(lblResult.getText() + "\n\u2b06 Difficulty naik ke Level " + gameEngine.getUrgentDifficulty() + "!");
+                        }
+                        
                         // Generate kasus baru otomatis!
                         CaseData newCase = gameEngine.generateNewCase();
                         if (newCase != null) {
@@ -213,6 +229,18 @@ public class Main extends Application {
                     } else {
                         gameEngine.setCaseStatus(caseT, "WRONG PERSON");
                         gameEngine.addWrongAnswer();
+                        
+                        // Stop urgent timer jika ada
+                        CaseData failedCase = gameEngine.getActiveCases().get(caseT);
+                        if (failedCase != null && failedCase.isUrgent()) {
+                            if (urgentTimers.containsKey(caseT)) {
+                                urgentTimers.get(caseT).stop();
+                                urgentTimers.remove(caseT);
+                                urgentTimeLeft.remove(caseT);
+                            }
+                            gameEngine.addUrgentFail();
+                        }
+                        
                         lblResult.setStyle("-fx-text-fill: #ff4444; -fx-font-family: 'Consolas'; -fx-font-size: 13px; -fx-padding: 10 0 0 0;");
                         lblResult.setText(result.message + "\n\n\u274c ORANG YANG SALAH! Tidak ada kasus baru.");
                     }
@@ -466,10 +494,26 @@ public class Main extends Application {
             response.setStyle("-fx-text-fill: #00ff88; -fx-font-style: italic; -fx-font-size: 12px; -fx-padding: 5 0 0 10;");
             chatContent.getChildren().add(response);
 
+            // Coba generate kasus urgent
+            if (gameEngine.isUrgentCasesEnabled()) {
+                CaseData urgentCase = gameEngine.generateUrgentCase();
+                if (urgentCase != null) {
+                    int mins = urgentCase.getTimeLimitSeconds() / 60;
+                    int secs = urgentCase.getTimeLimitSeconds() % 60;
+                    Label urgentInfo = new Label("\ud83d\udea8 KASUS DARURAT: " + urgentCase.getCaseId() + " - " + urgentCase.getTitle()
+                        + "\n\u23f1 Batas waktu: " + String.format("%02d:%02d", mins, secs)
+                        + "\nLevel: " + gameEngine.getUrgentDifficulty());
+                    urgentInfo.setWrapText(true);
+                    urgentInfo.setStyle("-fx-text-fill: #ff4444; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 5 0 0 10;");
+                    chatContent.getChildren().add(urgentInfo);
+                    startUrgentTimer(urgentCase.getCaseId(), urgentCase.getTimeLimitSeconds());
+                }
+            }
+
             refreshCaseList();
 
             // Kirim pesan berikutnya setelah delay
-            new Timeline(new KeyFrame(Duration.seconds(8), ev -> sendCommanderMessage())).play();
+            new Timeline(new KeyFrame(Duration.seconds(12), ev -> sendCommanderMessage())).play();
         });
 
         btnReject.setOnAction(e -> {
@@ -580,7 +624,11 @@ public class Main extends Application {
                 label = "✅ " + caseId + " - " + cData.getTitle() + " [COMPLETE]";
             } else if (status.equals("WRONG PERSON")) {
                 label = "❌ " + caseId + " - " + cData.getTitle() + " [WRONG PERSON]";
+            } else if (status.equals("TIMEOUT")) {
+                label = "⏰ " + caseId + " - " + cData.getTitle() + " [WAKTU HABIS]";
             }
+            
+            VBox caseEntry = new VBox(3);
             
             Button btnCase = new Button(label);
             btnCase.setMaxWidth(Double.MAX_VALUE);
@@ -591,11 +639,94 @@ public class Main extends Application {
                 btnCase.setStyle("-fx-border-color: #00ff88; -fx-border-width: 0 0 0 3;");
             } else if (status.equals("WRONG PERSON")) {
                 btnCase.setStyle("-fx-border-color: #ff4444; -fx-border-width: 0 0 0 3;");
+            } else if (status.equals("TIMEOUT")) {
+                btnCase.setStyle("-fx-border-color: #ff8800; -fx-border-width: 0 0 0 3;");
+            } else if (cData.isUrgent() && status.equals("ACTIVE")) {
+                btnCase.setStyle("-fx-border-color: #ff4444; -fx-border-width: 0 0 0 3; -fx-background-color: rgba(255,50,50,0.15);");
             }
             
             btnCase.setOnAction(e -> openCaseDetail(caseId));
-            caseListContainer.getChildren().add(btnCase);
+            caseEntry.getChildren().add(btnCase);
+            
+            // Tampilkan countdown timer untuk kasus urgent yang masih aktif
+            if (cData.isUrgent() && status.equals("ACTIVE") && urgentTimeLeft.containsKey(caseId)) {
+                int secs = urgentTimeLeft.get(caseId);
+                int mins = secs / 60;
+                int sec = secs % 60;
+                Label timerLabel = new Label("⏱ SISA WAKTU: " + String.format("%02d:%02d", mins, sec));
+                timerLabel.setId("timer-" + caseId);
+                if (secs <= 60) {
+                    timerLabel.setStyle("-fx-text-fill: #ff2222; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 0 0 0 15; -fx-font-family: 'Consolas';");
+                } else {
+                    timerLabel.setStyle("-fx-text-fill: #ff8800; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 0 0 0 15; -fx-font-family: 'Consolas';");
+                }
+                caseEntry.getChildren().add(timerLabel);
+            }
+            
+            caseListContainer.getChildren().add(caseEntry);
         }
+    }
+
+    // --- MULAI TIMER UNTUK KASUS URGENT ---
+    private void startUrgentTimer(String caseId, int timeLimitSeconds) {
+        urgentTimeLeft.put(caseId, timeLimitSeconds);
+
+        Timeline timer = new Timeline(new KeyFrame(Duration.seconds(1), ev -> {
+            int remaining = urgentTimeLeft.getOrDefault(caseId, 0);
+            remaining--;
+            urgentTimeLeft.put(caseId, remaining);
+
+            // Update display timer
+            refreshCaseList();
+
+            if (remaining <= 0) {
+                // WAKTU HABIS!
+                urgentTimers.get(caseId).stop();
+                urgentTimers.remove(caseId);
+                urgentTimeLeft.remove(caseId);
+
+                gameEngine.setCaseStatus(caseId, "TIMEOUT");
+                gameEngine.addUrgentFail();
+                refreshCaseList();
+
+                // Pesan kecewa dari Komandan di chat
+                VBox failBubble = new VBox(5);
+                failBubble.setStyle("-fx-background-color: rgba(80, 20, 20, 0.8); -fx-padding: 10; -fx-background-radius: 8; -fx-border-color: #ff4444; -fx-border-radius: 8;");
+                
+                HBox failHeader = new HBox(8);
+                failHeader.setAlignment(Pos.CENTER_LEFT);
+                try {
+                    File kFile = new File("img/Orang/Komandan.png");
+                    if (kFile.exists()) {
+                        ImageView kImg = new ImageView(new Image(kFile.toURI().toString()));
+                        kImg.setFitWidth(25); kImg.setFitHeight(25); kImg.setPreserveRatio(true);
+                        failHeader.getChildren().add(kImg);
+                    }
+                } catch (Exception ex) {}
+                
+                Label failSender = new Label("Komandan");
+                failSender.setStyle("-fx-text-fill: #ff4444; -fx-font-weight: bold; -fx-font-size: 12px;");
+                failHeader.getChildren().add(failSender);
+
+                String failMsg;
+                if (!gameEngine.isUrgentCasesEnabled()) {
+                    failMsg = "\u26a0 KAMU GAGAL " + gameEngine.getMaxUrgentFails() + "x! Saya sangat KECEWA.\nKamu tidak akan mendapat kasus darurat lagi.\nKinerja buruk akan dilaporkan ke pusat.";
+                } else {
+                    failMsg = "\u23f0 WAKTU HABIS untuk " + caseId + "! Kasus GAGAL!\nIni kegagalan ke-" + gameEngine.getUrgentFailCount() + "/" + gameEngine.getMaxUrgentFails() + ".\nJangan sampai gagal lagi!";
+                }
+                Label failText = new Label(failMsg);
+                failText.setWrapText(true);
+                failText.setStyle("-fx-text-fill: #ff8888; -fx-font-size: 11px;");
+                
+                failBubble.getChildren().addAll(failHeader, failText);
+                chatContent.getChildren().add(failBubble);
+                chatWindow.setVisible(true);
+                chatWindow.toFront();
+            }
+        }));
+        timer.setCycleCount(timeLimitSeconds);
+        timer.play();
+        urgentTimers.put(caseId, timer);
     }
 
     // --- FUNGSI MENGISI DATA KASUS KE FOLDERDISPLAY ---

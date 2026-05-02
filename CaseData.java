@@ -9,6 +9,10 @@ public class CaseData {
     private String date;
     private String description;
 
+    // Urgent case system
+    private boolean urgent;
+    private int timeLimitSeconds; // 0 = no time limit
+
     // IMPLEMENTASI LIST
     private List<Evidence> evidences;
     private List<Witness> witnesses;
@@ -20,6 +24,8 @@ public class CaseData {
         this.location = location;
         this.date = date;
         this.description = description;
+        this.urgent = false;
+        this.timeLimitSeconds = 0;
         this.evidences = new ArrayList<>();
         this.witnesses = new ArrayList<>();
     }
@@ -35,4 +41,9 @@ public class CaseData {
     public String getDescription() { return description; }
     public List<Evidence> getEvidences() { return evidences; }
     public List<Witness> getWitnesses() { return witnesses; }
+
+    public boolean isUrgent() { return urgent; }
+    public void setUrgent(boolean urgent) { this.urgent = urgent; }
+    public int getTimeLimitSeconds() { return timeLimitSeconds; }
+    public void setTimeLimitSeconds(int seconds) { this.timeLimitSeconds = seconds; }
 }
