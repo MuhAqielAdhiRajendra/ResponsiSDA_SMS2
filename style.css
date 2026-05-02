@@ -1,0 +1,261 @@
+/* style.css */
+
+/* ROOT and DESKTOP */
+.root {
+    -fx-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.desktop {
+    -fx-background-image: url('img/Walpaper.png');
+    -fx-background-size: cover;
+    -fx-background-position: center center;
+    -fx-background-repeat: no-repeat;
+    -fx-background-color: #0e1320; /* fallback color */
+}
+
+/* DESKTOP ICONS */
+.desktop-icon-box {
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+    -fx-transition: all 0.2s ease;
+}
+
+.desktop-icon-box:hover {
+    -fx-background-color: rgba(77, 166, 255, 0.15);
+    -fx-effect: dropshadow(gaussian, rgba(77, 166, 255, 0.4), 10, 0, 0, 0);
+}
+
+.desktop-icon-label {
+    -fx-text-fill: #e0e6ed;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 3, 0, 0, 1);
+}
+
+/* EXPLORER WINDOW */
+.explorer-window {
+    -fx-background-color: rgba(22, 26, 38, 0.95);
+    -fx-border-color: #4da6ff; /* Gunakan border terang sebagai ganti shadow */
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.exp-header {
+    -fx-background-color: linear-gradient(to right, #1f2537, #2c344b);
+    -fx-padding: 10 15;
+    -fx-cursor: move;
+    -fx-background-radius: 8 8 0 0;
+    -fx-border-color: transparent transparent #3b4255 transparent;
+    -fx-border-width: 1;
+}
+
+.exp-title {
+    -fx-text-fill: #4da6ff;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(77, 166, 255, 0.3), 5, 0, 0, 0);
+}
+
+.exp-close-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #8591a5;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 0 5;
+}
+
+.exp-close-btn:hover {
+    -fx-text-fill: #ff4d4d;
+    -fx-effect: dropshadow(gaussian, rgba(255, 77, 77, 0.5), 5, 0, 0, 0);
+}
+
+.case-list-container {
+    -fx-background-color: transparent;
+}
+
+.exp-scroll-pane {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.exp-scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* CASE BUTTONS */
+.btn-case {
+    -fx-background-color: rgba(31, 37, 55, 0.6);
+    -fx-text-fill: #c0c8d4;
+    -fx-font-size: 14px;
+    -fx-padding: 12 15;
+    -fx-border-color: #3b4255;
+    -fx-border-width: 1;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+    -fx-cursor: hand;
+    -fx-alignment: center-left;
+}
+
+.btn-case:hover {
+    -fx-background-color: rgba(77, 166, 255, 0.1);
+    -fx-border-color: #4da6ff;
+    -fx-text-fill: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(77, 166, 255, 0.2), 5, 0, 0, 0);
+}
+
+/* DETAIL WINDOW */
+.detail-window {
+    -fx-cursor: move;
+    -fx-border-color: transparent;
+}
+
+.detail-fallback-bg {
+    -fx-background-color: #f0ecdf; /* Manila folder color */
+    -fx-border-color: #d1c8a3;
+    -fx-border-width: 2;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.text-data-box {
+    -fx-padding: 10;
+}
+
+.detail-text {
+    -fx-font-family: 'Consolas', monospace;
+    -fx-font-size: 18px;
+    -fx-text-fill: #1a1a1a;
+    -fx-font-weight: bold;
+}
+
+.detail-close-btn {
+    -fx-background-color: rgba(0,0,0,0.1);
+    -fx-text-fill: #1a1a1a;
+    -fx-font-weight: bold;
+    -fx-font-size: 16px;
+    -fx-cursor: hand;
+    -fx-background-radius: 15;
+    -fx-min-width: 30;
+    -fx-min-height: 30;
+}
+
+.detail-close-btn:hover {
+    -fx-background-color: #ff4d4d;
+    -fx-text-fill: white;
+}
+
+/* TASKBAR */
+.taskbar {
+    -fx-background-color: rgba(14, 19, 32, 0.85);
+    -fx-padding: 0 20;
+    -fx-pref-height: 50;
+    -fx-border-color: #2c344b transparent transparent transparent;
+    -fx-border-width: 1;
+}
+
+.start-btn {
+    -fx-text-fill: #4da6ff;
+    -fx-font-size: 28px;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(77, 166, 255, 0.6), 10, 0, 0, 0);
+}
+
+.start-btn:hover {
+    -fx-text-fill: #80c1ff;
+    -fx-effect: dropshadow(gaussian, rgba(128, 193, 255, 0.8), 15, 0, 0, 0);
+}
+
+.search-bar {
+    -fx-background-color: rgba(31, 37, 55, 0.8);
+    -fx-text-fill: #ffffff;
+    -fx-prompt-text-fill: #8591a5;
+    -fx-background-radius: 20;
+    -fx-border-color: #3b4255;
+    -fx-border-radius: 20;
+    -fx-pref-width: 280;
+    -fx-padding: 6 15;
+    -fx-font-size: 13px;
+}
+
+.search-bar:focused {
+    -fx-border-color: #4da6ff;
+    -fx-background-color: rgba(44, 52, 75, 0.9);
+}
+
+.clock {
+    -fx-text-fill: #c0c8d4;
+    -fx-font-size: 12px;
+    -fx-font-weight: 500;
+}
+/* SEE DETAIL BUTTON */
+.btn-see-detail {
+    -fx-background-color: #2b3a55;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-padding: 8 15;
+    -fx-background-radius: 5;
+    -fx-cursor: hand;
+    -fx-border-color: #4da6ff;
+    -fx-border-width: 1;
+    -fx-border-radius: 5;
+}
+
+.btn-see-detail:hover {
+    -fx-background-color: #4da6ff;
+    -fx-text-fill: #111;
+}
+
+/* FILE WINDOW */
+.file-window {
+    -fx-cursor: move;
+    -fx-border-color: transparent;
+}
+
+.file-fallback-bg {
+    -fx-background-color: #fdfaf0;
+    -fx-border-color: #d1c8a3;
+    -fx-border-width: 1;
+}
+
+.file-header {
+    -fx-font-family: 'Times New Roman', serif;
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111;
+    -fx-underline: true;
+    -fx-alignment: center;
+    -fx-max-width: Infinity;
+}
+
+.file-text-bold {
+    -fx-font-family: 'Consolas', monospace;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #222;
+}
+
+.file-text {
+    -fx-font-family: 'Consolas', monospace;
+    -fx-font-size: 14px;
+    -fx-text-fill: #333;
+    -fx-line-spacing: 1.5em;
+}
+
+.file-close-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #aa0000;
+    -fx-font-weight: bold;
+    -fx-font-size: 18px;
+    -fx-cursor: hand;
+}
+
+.file-close-btn:hover {
+    -fx-background-color: rgba(255,0,0,0.1);
+    -fx-background-radius: 15;
+}
