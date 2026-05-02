@@ -1,4 +1,6 @@
 import javafx.application.Application;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -11,6 +13,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -25,9 +28,13 @@ public class Main extends Application {
     // --- DEKLARASI JENDELA APLIKASI ---
     private AnchorPane desktop;
     private VBox explorerWindow;
-    private VBox databaseWindow; // Jendela baru untuk pencarian pelaku
-    private Image folderDisplayImg; // Cache gambar agar hemat memori
-    private Image fileDisplayImg;   // Cache gambar File
+    private VBox databaseWindow;
+    private VBox chatWindow;
+    private VBox caseListContainer;
+    private VBox chatContent; // Chat messages container
+    private StackPane rootStack;
+    private Image folderDisplayImg;
+    private Image fileDisplayImg;
 
     @Override
     public void start(Stage primaryStage) {
@@ -63,6 +70,10 @@ public class Main extends Application {
         AnchorPane.setTopAnchor(caseBox, 140.0);
         AnchorPane.setLeftAnchor(caseBox, 30.0);
 
+        VBox chatIconBox = createIcon("Chat Komandan", "img/Chat.png");
+        AnchorPane.setTopAnchor(chatIconBox, 250.0);
+        AnchorPane.setLeftAnchor(chatIconBox, 30.0);
+
 
         // =========================================================
         // JENDELA 1: EXPLORER (Daftar Kasus Aktif)
@@ -89,7 +100,7 @@ public class Main extends Application {
         expHeader.getChildren().addAll(expTitle, expSpacer, expCloseBtn);
 
         // Isi Explorer
-        VBox caseListContainer = new VBox(10);
+        caseListContainer = new VBox(10);
         caseListContainer.setPadding(new Insets(15));
         caseListContainer.getStyleClass().add("case-list-container");
         
@@ -175,8 +186,46 @@ public class Main extends Application {
             String suspect = txtSuspect.getText().isEmpty() ? "Unknown" : txtSuspect.getText();
             String caseT = txtTargetCase.getText().isEmpty() ? "KASUS" : txtTargetCase.getText();
             
-            GameEngine.AnalysisResult result = gameEngine.analyzeSuspect(caseT, suspect);
-            lblResult.setText(result.message);
+            btnAnalyze.setDisable(true);
+            lblResult.setStyle("-fx-text-fill: #ffcc00; -fx-font-family: 'Consolas'; -fx-font-size: 13px; -fx-padding: 10 0 0 0;");
+            lblResult.setText(">> Menghubungkan ke server pusat...\n>> Mohon tunggu...");
+
+            Timeline timeline = new Timeline(
+                new KeyFrame(Duration.seconds(1), ev -> {
+                    lblResult.setText(">> Mencocokkan jejak DNA...\n>> Menganalisis sidik jari...");
+                }),
+                new KeyFrame(Duration.seconds(2), ev -> {
+                    lblResult.setText(">> Menyusun profil biometrik...\n>> Menghitung probabilitas...");
+                }),
+                new KeyFrame(Duration.seconds(3), ev -> {
+                    GameEngine.AnalysisResult result = gameEngine.analyzeSuspect(caseT, suspect);
+                    
+                    if (result.isCulprit) {
+                        gameEngine.setCaseStatus(caseT, "COMPLETE");
+                        lblResult.setStyle("-fx-text-fill: #00ff88; -fx-font-family: 'Consolas'; -fx-font-size: 13px; -fx-padding: 10 0 0 0;");
+                        lblResult.setText(result.message + "\n\n\u2705 KASUS " + caseT + " DITUTUP \u2014 PELAKU DITEMUKAN!");
+                        
+                        // Generate kasus baru otomatis!
+                        CaseData newCase = gameEngine.generateNewCase();
+                        if (newCase != null) {
+                            lblResult.setText(lblResult.getText() + "\n\n\ud83d\udce9 KASUS BARU MASUK: " + newCase.getCaseId() + " - " + newCase.getTitle());
+                        }
+                    } else {
+                        gameEngine.setCaseStatus(caseT, "WRONG PERSON");
+                        gameEngine.addWrongAnswer();
+                        lblResult.setStyle("-fx-text-fill: #ff4444; -fx-font-family: 'Consolas'; -fx-font-size: 13px; -fx-padding: 10 0 0 0;");
+                        lblResult.setText(result.message + "\n\n\u274c ORANG YANG SALAH! Tidak ada kasus baru.");
+                    }
+                    refreshCaseList();
+                    btnAnalyze.setDisable(false);
+                    
+                    // Cek Bad Ending
+                    if (gameEngine.isGameOver()) {
+                        new Timeline(new KeyFrame(Duration.seconds(2), ev2 -> showBadEnding())).play();
+                    }
+                })
+            );
+            timeline.play();
         });
 
         dbContent.getChildren().addAll(lblDbDesc, txtTargetCase, txtSuspect, txtAnomaly, btnAnalyze, lblResult);
@@ -187,9 +236,46 @@ public class Main extends Application {
         makeDraggable(dbHeader, databaseWindow, desktop);
 
         // =========================================================
+        // JENDELA 3: CHAT KOMANDAN
+        // =========================================================
+        chatWindow = new VBox(0);
+        chatWindow.setPrefSize(380, 400);
+        chatWindow.getStyleClass().add("explorer-window");
+        chatWindow.setVisible(false);
+
+        HBox chatHeader = new HBox();
+        chatHeader.getStyleClass().add("exp-header");
+        Label chatTitle = new Label("💬 PESAN DARI KOMANDAN");
+        chatTitle.getStyleClass().add("exp-title");
+        Region chatSpacer = new Region();
+        HBox.setHgrow(chatSpacer, Priority.ALWAYS);
+        Button chatCloseBtn = new Button("✕");
+        chatCloseBtn.getStyleClass().add("exp-close-btn");
+        chatCloseBtn.setOnAction(e -> chatWindow.setVisible(false));
+        chatHeader.getChildren().addAll(chatTitle, chatSpacer, chatCloseBtn);
+
+        chatContent = new VBox(10);
+        chatContent.setPadding(new Insets(15));
+
+        Label chatWelcome = new Label("👮 Komandan: Selamat datang, Agen. Tunggu instruksi selanjutnya.");
+        chatWelcome.setWrapText(true);
+        chatWelcome.setStyle("-fx-text-fill: #8591a5; -fx-font-style: italic; -fx-font-size: 12px;");
+        chatContent.getChildren().add(chatWelcome);
+
+        ScrollPane chatScroll = new ScrollPane(chatContent);
+        chatScroll.setFitToWidth(true);
+        chatScroll.getStyleClass().add("exp-scroll-pane");
+        VBox.setVgrow(chatScroll, Priority.ALWAYS);
+
+        chatWindow.getChildren().addAll(chatHeader, chatScroll);
+        chatWindow.setLayoutX(550);
+        chatWindow.setLayoutY(200);
+        makeDraggable(chatHeader, chatWindow, desktop);
+
+        // =========================================================
         // GABUNGKAN KE DESKTOP & AKTIFKAN FITUR DRAG (GESER)
         // =========================================================
-        desktop.getChildren().addAll(folderBox, caseBox, explorerWindow, databaseWindow);
+        desktop.getChildren().addAll(folderBox, caseBox, chatIconBox, explorerWindow, databaseWindow, chatWindow);
 
 
         // =========================================================
@@ -229,23 +315,287 @@ public class Main extends Application {
             databaseWindow.toFront(); 
         });
 
+        // Chat Komandan -> Buka Chat
+        chatIconBox.setOnMouseClicked(e -> {
+            chatWindow.setVisible(true);
+            chatWindow.toFront();
+        });
+
 
         // ROOT LAYER
         VBox mainRoot = new VBox();
         VBox.setVgrow(desktop, Priority.ALWAYS);
         mainRoot.getChildren().addAll(desktop, taskbar);
+        mainRoot.setVisible(false); // Sembunyikan dulu
 
-        Scene scene = new Scene(mainRoot, 1024, 720);
+        // =========================================================
+        // BOOT / LOADING SCREEN (Windows-style)
+        // =========================================================
+        VBox bootScreen = new VBox(20);
+        bootScreen.setAlignment(Pos.CENTER);
+        bootScreen.setStyle("-fx-background-color: linear-gradient(to bottom, #0a0e1a, #111827);");
+
+        Label bootLogo = new Label("⬡ CORE");
+        bootLogo.setStyle("-fx-text-fill: #4da6ff; -fx-font-size: 42px; -fx-font-weight: bold; -fx-font-family: 'Consolas';");
+
+        Label bootSubtitle = new Label("Digital DNA OS v3.2.1");
+        bootSubtitle.setStyle("-fx-text-fill: #5a6a80; -fx-font-size: 14px; -fx-font-family: 'Consolas';");
+
+        ProgressBar progressBar = new ProgressBar(0);
+        progressBar.setPrefWidth(350);
+        progressBar.setPrefHeight(6);
+        progressBar.setStyle("-fx-accent: #4da6ff;");
+
+        Label bootStatus = new Label("Initializing system...");
+        bootStatus.setStyle("-fx-text-fill: #8591a5; -fx-font-size: 12px; -fx-font-family: 'Consolas';");
+
+        Label bootCopyright = new Label("© 2026 CORE Intelligence Agency. All rights reserved.");
+        bootCopyright.setStyle("-fx-text-fill: #3b4255; -fx-font-size: 10px; -fx-padding: 40 0 0 0;");
+
+        bootScreen.getChildren().addAll(bootLogo, bootSubtitle, progressBar, bootStatus, bootCopyright);
+
+        rootStack = new StackPane(mainRoot, bootScreen);
+
+        Scene scene = new Scene(rootStack, 1024, 720);
         try {
             File cssFile = new File("style.css");
             scene.getStylesheets().add(cssFile.toURI().toString());
         } catch (Exception e) {
             System.out.println("Gagal load style.css");
         }
-        
+
         primaryStage.setTitle("CORE - Digital DNA OS Simulator");
         primaryStage.setScene(scene);
         primaryStage.show();
+
+        // --- ANIMASI LOADING ---
+        Timeline bootTimeline = new Timeline(
+            new KeyFrame(Duration.seconds(0.5), ev -> {
+                progressBar.setProgress(0.15);
+                bootStatus.setText("Loading kernel modules...");
+            }),
+            new KeyFrame(Duration.seconds(1.0), ev -> {
+                progressBar.setProgress(0.30);
+                bootStatus.setText("Mounting file system...");
+            }),
+            new KeyFrame(Duration.seconds(1.5), ev -> {
+                progressBar.setProgress(0.45);
+                bootStatus.setText("Loading case database...");
+            }),
+            new KeyFrame(Duration.seconds(2.0), ev -> {
+                progressBar.setProgress(0.60);
+                bootStatus.setText("Initializing biometric scanner...");
+            }),
+            new KeyFrame(Duration.seconds(2.5), ev -> {
+                progressBar.setProgress(0.75);
+                bootStatus.setText("Connecting to CORE server...");
+            }),
+            new KeyFrame(Duration.seconds(3.0), ev -> {
+                progressBar.setProgress(0.90);
+                bootStatus.setText("Preparing desktop environment...");
+            }),
+            new KeyFrame(Duration.seconds(3.5), ev -> {
+                progressBar.setProgress(1.0);
+                bootStatus.setText("Welcome, Agent.");
+                bootStatus.setStyle("-fx-text-fill: #00ff88; -fx-font-size: 12px; -fx-font-family: 'Consolas';");
+            }),
+            new KeyFrame(Duration.seconds(4.2), ev -> {
+                bootScreen.setVisible(false);
+                mainRoot.setVisible(true);
+            }),
+            // Setelah boot, kirim pesan pertama dari Komandan
+            new KeyFrame(Duration.seconds(6.0), ev -> {
+                sendCommanderMessage();
+            })
+        );
+        bootTimeline.play();
+    }
+
+    // --- KIRIM PESAN DARI KOMANDAN KE CHAT ---
+    private void sendCommanderMessage() {
+        if (!gameEngine.hasCommanderMessages()) return;
+
+        String[] msg = gameEngine.getNextCommanderMessage();
+        if (msg == null) return;
+
+        VBox msgBubble = new VBox(8);
+        msgBubble.setStyle("-fx-background-color: rgba(31, 37, 55, 0.8); -fx-padding: 12; -fx-background-radius: 10; -fx-border-color: #4da6ff; -fx-border-radius: 10; -fx-border-width: 1;");
+
+        HBox senderBox = new HBox(8);
+        senderBox.setAlignment(Pos.CENTER_LEFT);
+        try {
+            File komandanFile = new File("img/Orang/Komandan.png");
+            if (komandanFile.exists()) {
+                ImageView komandanImg = new ImageView(new Image(komandanFile.toURI().toString()));
+                komandanImg.setFitWidth(30);
+                komandanImg.setFitHeight(30);
+                komandanImg.setPreserveRatio(true);
+                komandanImg.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 3, 0, 0, 0);");
+                senderBox.getChildren().add(komandanImg);
+            }
+        } catch (Exception ex) {}
+        Label lblSender = new Label("Komandan");
+        lblSender.setStyle("-fx-text-fill: #4da6ff; -fx-font-weight: bold; -fx-font-size: 13px;");
+        senderBox.getChildren().add(lblSender);
+
+        Label lblTitle = new Label(msg[0]);
+        lblTitle.setStyle("-fx-text-fill: #ffcc00; -fx-font-weight: bold; -fx-font-size: 12px;");
+
+        Label lblBody = new Label(msg[1]);
+        lblBody.setWrapText(true);
+        lblBody.setStyle("-fx-text-fill: #c0c8d4; -fx-font-size: 12px;");
+
+        HBox btnBox = new HBox(10);
+        btnBox.setPadding(new Insets(5, 0, 0, 0));
+
+        Button btnAccept = new Button("\u2705 Terima");
+        btnAccept.setStyle("-fx-background-color: #00aa55; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 5 15; -fx-background-radius: 6; -fx-cursor: hand;");
+
+        Button btnReject = new Button("\u274c Tolak");
+        btnReject.setStyle("-fx-background-color: #aa3333; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 5 15; -fx-background-radius: 6; -fx-cursor: hand;");
+
+        btnAccept.setOnAction(e -> {
+            gameEngine.acceptMission();
+            btnAccept.setDisable(true);
+            btnReject.setDisable(true);
+            btnAccept.setText("\u2705 Diterima");
+            btnReject.setVisible(false);
+
+            Label response = new Label("\ud83d\udc64 Agen: Siap laksanakan, Komandan.");
+            response.setWrapText(true);
+            response.setStyle("-fx-text-fill: #00ff88; -fx-font-style: italic; -fx-font-size: 12px; -fx-padding: 5 0 0 10;");
+            chatContent.getChildren().add(response);
+
+            refreshCaseList();
+
+            // Kirim pesan berikutnya setelah delay
+            new Timeline(new KeyFrame(Duration.seconds(8), ev -> sendCommanderMessage())).play();
+        });
+
+        btnReject.setOnAction(e -> {
+            gameEngine.addRejectCount();
+            btnAccept.setDisable(true);
+            btnReject.setDisable(true);
+            btnReject.setText("\u274c Ditolak");
+            btnAccept.setVisible(false);
+
+            Label response = new Label("\ud83d\udc64 Agen: Maaf Komandan, saya tidak bisa saat ini.");
+            response.setWrapText(true);
+            response.setStyle("-fx-text-fill: #ff6644; -fx-font-style: italic; -fx-font-size: 12px; -fx-padding: 5 0 0 10;");
+            chatContent.getChildren().add(response);
+
+            Label warning = new Label("\u26a0 Peringatan: Penolakan ke-" + gameEngine.getRejectCount() + "/3");
+            warning.setStyle("-fx-text-fill: #ff4444; -fx-font-size: 11px; -fx-font-weight: bold;");
+            chatContent.getChildren().add(warning);
+
+            if (gameEngine.isFiredForInsubordination()) {
+                new Timeline(new KeyFrame(Duration.seconds(2), ev -> showBadEndingInsubordination())).play();
+            } else {
+                // Kirim pesan berikutnya
+                new Timeline(new KeyFrame(Duration.seconds(8), ev -> sendCommanderMessage())).play();
+            }
+        });
+
+        btnBox.getChildren().addAll(btnAccept, btnReject);
+        msgBubble.getChildren().addAll(senderBox, lblTitle, lblBody, btnBox);
+        chatContent.getChildren().add(msgBubble);
+
+        // Buka chat window otomatis dan flash
+        chatWindow.setVisible(true);
+        chatWindow.toFront();
+    }
+
+    // --- BAD ENDING: INSUBORDINASI (Terlalu banyak menolak) ---
+    private void showBadEndingInsubordination() {
+        VBox screen = new VBox(20);
+        screen.setAlignment(Pos.CENTER);
+        screen.setStyle("-fx-background-color: linear-gradient(to bottom, #1a0a00, #0a0500);");
+
+        Label icon = new Label("\ud83d\udeab");
+        icon.setStyle("-fx-font-size: 80px;");
+
+        Label title = new Label("PEMBANGKANGAN");
+        title.setStyle("-fx-text-fill: #ff6622; -fx-font-size: 44px; -fx-font-weight: bold; -fx-font-family: 'Consolas';");
+
+        Label subtitle = new Label("Kamu menolak terlalu banyak perintah dari Komandan.\nSikap insubordinasimu tidak bisa ditoleransi.\n\nKamu resmi DIPECAT dari Divisi Forensik.");
+        subtitle.setStyle("-fx-text-fill: #996644; -fx-font-size: 14px; -fx-font-family: 'Consolas'; -fx-text-alignment: center;");
+        subtitle.setAlignment(Pos.CENTER);
+
+        Label stats = new Label("Perintah Ditolak: " + gameEngine.getRejectCount() + "/3");
+        stats.setStyle("-fx-text-fill: #ff6622; -fx-font-size: 16px; -fx-font-family: 'Consolas';");
+
+        Button btnRestart = new Button("\u21bb MULAI ULANG");
+        btnRestart.setStyle("-fx-background-color: #ff6622; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 10 30; -fx-background-radius: 8; -fx-cursor: hand;");
+        btnRestart.setOnAction(e -> {
+            Stage stage = (Stage) rootStack.getScene().getWindow();
+            stage.close();
+            new Main().start(new Stage());
+        });
+
+        screen.getChildren().addAll(icon, title, subtitle, stats, btnRestart);
+        rootStack.getChildren().add(screen);
+    }
+
+    // --- BAD ENDING: KAMU DIPECAT ---
+    private void showBadEnding() {
+        VBox badEndingScreen = new VBox(20);
+        badEndingScreen.setAlignment(Pos.CENTER);
+        badEndingScreen.setStyle("-fx-background-color: linear-gradient(to bottom, #1a0000, #0a0000);");
+
+        Label skull = new Label("\u2620");
+        skull.setStyle("-fx-font-size: 80px;");
+
+        Label title = new Label("KAMU DIPECAT");
+        title.setStyle("-fx-text-fill: #ff2222; -fx-font-size: 48px; -fx-font-weight: bold; -fx-font-family: 'Consolas';");
+
+        Label subtitle = new Label("Semua kasus gagal diselesaikan.\nOrang yang tidak bersalah ditangkap atas kesalahanmu.\nKarirmu sebagai agen forensik telah berakhir.");
+        subtitle.setStyle("-fx-text-fill: #994444; -fx-font-size: 14px; -fx-font-family: 'Consolas'; -fx-text-alignment: center;");
+        subtitle.setAlignment(Pos.CENTER);
+
+        Label stats = new Label("Kasus Salah: " + gameEngine.getWrongCount());
+        stats.setStyle("-fx-text-fill: #ff4444; -fx-font-size: 16px; -fx-font-family: 'Consolas';");
+
+        Button btnRestart = new Button("\u21bb MULAI ULANG");
+        btnRestart.setStyle("-fx-background-color: #ff2222; -fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 10 30; -fx-background-radius: 8; -fx-cursor: hand;");
+        btnRestart.setOnAction(e -> {
+            // Restart game
+            Stage stage = (Stage) rootStack.getScene().getWindow();
+            stage.close();
+            new Main().start(new Stage());
+        });
+
+        badEndingScreen.getChildren().addAll(skull, title, subtitle, stats, btnRestart);
+        rootStack.getChildren().add(badEndingScreen);
+    }
+
+    // --- REFRESH DAFTAR KASUS DENGAN STATUS (COMPLETE / WRONG PERSON) ---
+    private void refreshCaseList() {
+        caseListContainer.getChildren().clear();
+        for (String caseId : gameEngine.getActiveCases().keySet()) {
+            CaseData cData = gameEngine.getActiveCases().get(caseId);
+            String status = gameEngine.getCaseStatus(caseId);
+            
+            String label = "📄 " + caseId + " - " + cData.getTitle();
+            if (status.equals("COMPLETE")) {
+                label = "✅ " + caseId + " - " + cData.getTitle() + " [COMPLETE]";
+            } else if (status.equals("WRONG PERSON")) {
+                label = "❌ " + caseId + " - " + cData.getTitle() + " [WRONG PERSON]";
+            }
+            
+            Button btnCase = new Button(label);
+            btnCase.setMaxWidth(Double.MAX_VALUE);
+            btnCase.setAlignment(Pos.CENTER_LEFT);
+            btnCase.getStyleClass().add("btn-case");
+            
+            if (status.equals("COMPLETE")) {
+                btnCase.setStyle("-fx-border-color: #00ff88; -fx-border-width: 0 0 0 3;");
+            } else if (status.equals("WRONG PERSON")) {
+                btnCase.setStyle("-fx-border-color: #ff4444; -fx-border-width: 0 0 0 3;");
+            }
+            
+            btnCase.setOnAction(e -> openCaseDetail(caseId));
+            caseListContainer.getChildren().add(btnCase);
+        }
     }
 
     // --- FUNGSI MENGISI DATA KASUS KE FOLDERDISPLAY ---
@@ -375,9 +725,9 @@ public class Main extends Application {
         
         HBox evidenceBox = new HBox(10);
         if (data.getEvidences() != null && !data.getEvidences().isEmpty()) {
-            for (Evidence e : data.getEvidences()) {
+            for (Evidence ev : data.getEvidences()) {
                 try {
-                    File imgFile = new File(e.getImagePath());
+                    File imgFile = new File(ev.getImagePath());
                     if (imgFile.exists()) {
                         Image evImg = new Image(imgFile.toURI().toString());
                         ImageView evView = new ImageView(evImg);
@@ -385,14 +735,20 @@ public class Main extends Application {
                         evView.setFitHeight(60);
                         evView.setPreserveRatio(true);
                         
-                        VBox polaroid = new VBox();
+                        Button btnEvDetail = new Button("🔍");
+                        btnEvDetail.setStyle("-fx-font-size: 8px; -fx-padding: 1 4;");
+                        String evUri = imgFile.toURI().toString();
+                        btnEvDetail.setOnAction(e -> openImageViewer(ev.getName(), evUri));
+
+                        VBox polaroid = new VBox(2);
+                        polaroid.setAlignment(Pos.CENTER);
                         polaroid.setStyle("-fx-background-color: white; -fx-padding: 3; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 3, 0, 0, 1);");
-                        polaroid.getChildren().add(evView);
+                        polaroid.getChildren().addAll(evView, btnEvDetail);
                         
                         evidenceBox.getChildren().add(polaroid);
                     }
                 } catch (Exception ex) {
-                    System.out.println("Gagal load bukti: " + e.getImagePath());
+                    System.out.println("Gagal load bukti: " + ev.getImagePath());
                 }
             }
         }
@@ -475,37 +831,65 @@ public class Main extends Application {
                 HBox bioBox = new HBox(15);
                 bioBox.setPadding(new Insets(5, 0, 0, 0));
                 
-                try {
-                    File dnaFile = new File(w.getSuspectDnaImage());
-                    if(dnaFile.exists()) {
-                        ImageView dnaView = new ImageView(new Image(dnaFile.toURI().toString()));
-                        dnaView.setFitWidth(40); dnaView.setFitHeight(40); dnaView.setPreserveRatio(true);
-                        dnaView.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 3, 0, 0, 0);");
-                        Label lDna = new Label("Sampel DNA:"); 
-                        lDna.setStyle("-fx-text-fill: #8591a5; -fx-font-size: 10px;");
-                        Button btnDna = new Button("🔍 Detail");
-                        btnDna.setStyle("-fx-font-size: 9px; -fx-padding: 2;");
-                        btnDna.setOnAction(ev -> openImageViewer("Detail DNA", dnaFile.toURI().toString()));
-                        VBox dnaContainer = new VBox(2, lDna, dnaView, btnDna);
-                        dnaContainer.setAlignment(Pos.CENTER);
-                        bioBox.getChildren().add(dnaContainer);
-                    }
-                    
-                    File fpFile = new File(w.getSuspectFingerprintImage());
-                    if(fpFile.exists()) {
-                        ImageView fpView = new ImageView(new Image(fpFile.toURI().toString()));
-                        fpView.setFitWidth(40); fpView.setFitHeight(40); fpView.setPreserveRatio(true);
-                        fpView.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 3, 0, 0, 0);");
-                        Label lFp = new Label("Sidik Jari:"); 
-                        lFp.setStyle("-fx-text-fill: #8591a5; -fx-font-size: 10px;");
-                        Button btnFp = new Button("🔍 Detail");
-                        btnFp.setStyle("-fx-font-size: 9px; -fx-padding: 2;");
-                        btnFp.setOnAction(ev -> openImageViewer("Detail Sidik Jari", fpFile.toURI().toString()));
-                        VBox fpContainer = new VBox(2, lFp, fpView, btnFp);
-                        fpContainer.setAlignment(Pos.CENTER);
-                        bioBox.getChildren().add(fpContainer);
-                    }
-                } catch(Exception e) {}
+                // --- DNA ---
+                if (w.getSuspectDnaImage() != null && !w.getSuspectDnaImage().isEmpty()) {
+                    try {
+                        File dnaFile = new File(w.getSuspectDnaImage());
+                        if(dnaFile.exists()) {
+                            ImageView dnaView = new ImageView(new Image(dnaFile.toURI().toString()));
+                            dnaView.setFitWidth(40); dnaView.setFitHeight(40); dnaView.setPreserveRatio(true);
+                            dnaView.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 3, 0, 0, 0);");
+                            Label lDna = new Label("Sampel DNA:"); 
+                            lDna.setStyle("-fx-text-fill: #8591a5; -fx-font-size: 10px;");
+                            Button btnDna = new Button("\ud83d\udd0d Detail");
+                            btnDna.setStyle("-fx-font-size: 9px; -fx-padding: 2;");
+                            btnDna.setOnAction(ev -> openImageViewer("Detail DNA", dnaFile.toURI().toString()));
+                            VBox dnaContainer = new VBox(2, lDna, dnaView, btnDna);
+                            dnaContainer.setAlignment(Pos.CENTER);
+                            bioBox.getChildren().add(dnaContainer);
+                        }
+                    } catch(Exception e) {}
+                } else {
+                    Label lDna = new Label("Sampel DNA:");
+                    lDna.setStyle("-fx-text-fill: #8591a5; -fx-font-size: 10px;");
+                    Label lError = new Label("\u26a0 SAMPEL\nRUSAK");
+                    lError.setStyle("-fx-text-fill: #ff6644; -fx-font-size: 10px; -fx-font-weight: bold; -fx-text-alignment: center; -fx-padding: 8 5;");
+                    lError.setAlignment(Pos.CENTER);
+                    VBox dnaContainer = new VBox(2, lDna, lError);
+                    dnaContainer.setAlignment(Pos.CENTER);
+                    dnaContainer.setStyle("-fx-background-color: rgba(255,50,50,0.1); -fx-background-radius: 5; -fx-padding: 3;");
+                    bioBox.getChildren().add(dnaContainer);
+                }
+
+                // --- SIDIK JARI ---
+                if (w.getSuspectFingerprintImage() != null && !w.getSuspectFingerprintImage().isEmpty()) {
+                    try {
+                        File fpFile = new File(w.getSuspectFingerprintImage());
+                        if(fpFile.exists()) {
+                            ImageView fpView = new ImageView(new Image(fpFile.toURI().toString()));
+                            fpView.setFitWidth(40); fpView.setFitHeight(40); fpView.setPreserveRatio(true);
+                            fpView.setStyle("-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 3, 0, 0, 0);");
+                            Label lFp = new Label("Sidik Jari:"); 
+                            lFp.setStyle("-fx-text-fill: #8591a5; -fx-font-size: 10px;");
+                            Button btnFp = new Button("\ud83d\udd0d Detail");
+                            btnFp.setStyle("-fx-font-size: 9px; -fx-padding: 2;");
+                            btnFp.setOnAction(ev -> openImageViewer("Detail Sidik Jari", fpFile.toURI().toString()));
+                            VBox fpContainer = new VBox(2, lFp, fpView, btnFp);
+                            fpContainer.setAlignment(Pos.CENTER);
+                            bioBox.getChildren().add(fpContainer);
+                        }
+                    } catch(Exception e) {}
+                } else {
+                    Label lFp = new Label("Sidik Jari:");
+                    lFp.setStyle("-fx-text-fill: #8591a5; -fx-font-size: 10px;");
+                    Label lError = new Label("\u26a0 GAGAL\nDIPINDAI");
+                    lError.setStyle("-fx-text-fill: #ff6644; -fx-font-size: 10px; -fx-font-weight: bold; -fx-text-alignment: center; -fx-padding: 8 5;");
+                    lError.setAlignment(Pos.CENTER);
+                    VBox fpContainer = new VBox(2, lFp, lError);
+                    fpContainer.setAlignment(Pos.CENTER);
+                    fpContainer.setStyle("-fx-background-color: rgba(255,50,50,0.1); -fx-background-radius: 5; -fx-padding: 3;");
+                    bioBox.getChildren().add(fpContainer);
+                }
 
                 txtBox.getChildren().addAll(lblName, lblQuote, bioBox);
                 recordBox.getChildren().add(txtBox);
