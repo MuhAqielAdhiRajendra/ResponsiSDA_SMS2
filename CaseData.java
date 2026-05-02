@@ -13,7 +13,7 @@ public class CaseData {
     private boolean urgent;
     private int timeLimitSeconds; // 0 = no time limit
 
-    // IMPLEMENTASI LIST
+    // Struktur Data: LIST
     private List<Evidence> evidences;
     private List<Witness> witnesses;
 

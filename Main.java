@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class Main extends Application {
 
-    // --- STRUKTUR DATA (5 POIN: MAP) ---
+    // --- Struktur Data: MAP ---
     private GameEngine gameEngine;
 
     // --- DEKLARASI JENDELA APLIKASI ---

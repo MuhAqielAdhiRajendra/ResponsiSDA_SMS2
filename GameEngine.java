@@ -2,22 +2,22 @@ import java.util.*;
 
 public class GameEngine {
     
-    // 1. MAP: Database Kasus Aktif
+    // Struktur Data: MAP
     private Map<String, CaseData> caseDatabase;
     
     // Status Kasus: "ACTIVE", "COMPLETE", "WRONG PERSON"
     private Map<String, String> caseStatus;
     
-    // 2. QUEUE: Antrean Template Kasus (untuk generate otomatis)
+    // Struktur Data: QUEUE
     private Queue<CaseData> caseTemplateQueue;
     
-    // 3. SET: Registry Tersangka Unik
+    // Struktur Data: SET
     private Set<String> suspectRegistry;
     
-    // 4. STACK: Action History
+    // Struktur Data: STACK
     private Stack<String> actionHistory;
     
-    // 5. TREE: File System 
+    // Struktur Data: TREE
     private CustomTree<String> fileSystemTree;
 
     // Game State
@@ -454,7 +454,7 @@ public class GameEngine {
         
         logAction("Menganalisis tersangka '" + suspectName + "' pada " + caseId);
 
-        // 6. BINARY TREE
+        // Struktur Data: BINARY TREE
         CustomBinaryTree bst = new CustomBinaryTree();
         
         String tkpDna = "";
